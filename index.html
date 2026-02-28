@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BatteryLife — Phone Battery Health & Tips</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Leaflet for GPS Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    /* Print-only Certificate Styles */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+
+      #print-certificate,
+      #print-certificate * {
+        visibility: visible !important;
+      }
+
+      #print-certificate {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="BatteryLife">
+</head>
+
+<body>
+  <!-- Auto-Lock Overlay -->
+  <div id="auto-lock-overlay"
+    style="display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+    <div style="font-size: 4rem; margin-bottom: 1rem;">🔒</div>
+    <h2 style="color: white; margin-bottom: 1rem;">System Locked</h2>
+    <p style="color: var(--text-muted); margin-bottom: 2rem;">Reconnect your phone to unlock this view.</p>
+    <button class="btn btn-secondary" id="btn-unlock-bypass">Bypass Lock</button>
+  </div>
+
+  <div class="app">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">BatteryLife</span>
+        <button class="theme-toggle" id="theme-toggle" title="Toggle dark/light mode" aria-label="Toggle theme">
+          <span class="theme-icon-dark">🌙</span>
+          <span class="theme-icon-light">☀️</span>
+        </button>
+        <button class="theme-toggle oled-toggle" id="oled-toggle" title="Toggle OLED black mode"
+          aria-label="Toggle OLED">
+          ⬛
+        </button>
+      </div>
+      <nav class="nav">
+        <a href="#" class="nav-link active" data-section="dashboard">
+          <span class="nav-icon">📊</span>
+          Dashboard
+        </a>
+        <a href="#" class="nav-link" data-section="tracker">
+          <span class="nav-icon">🔋</span>
+          Health Tracker
+        </a>
+        <a href="#" class="nav-link" data-section="charge-history">
+          <span class="nav-icon">📱</span>
+          Charge History
+        </a>
+        <a href="#" class="nav-link" data-section="reminders">
+          <span class="nav-icon">⏰</span>
+          Reminders
+        </a>
+        <a href="#" class="nav-link" data-section="tips">
+          <span class="nav-icon">💡</span>
+          Tips & Optimization
+        </a>
+        <a href="#" class="nav-link" data-section="myths">
+          <span class="nav-icon">❓</span>
+          Battery Myths
+        </a>
+        <a href="#" class="nav-link" data-section="calculator">
+          <span class="nav-icon">🧮</span>
+          Interactive Tool
+        </a>
+        <a href="#" class="nav-link" data-section="phone-model">
+          <span class="nav-icon">📱</span>
+          Phone Models
+        </a>
+        <a href="#" class="nav-link" data-section="charger-compare">
+          <span class="nav-icon">⚡</span>
+          Charger Compare
+        </a>
+        <a href="#" class="nav-link" data-section="achievements">
+          <span class="nav-icon">🏆</span>
+          Achievements
+        </a>
+        <a href="#" class="nav-link" data-section="data-manager">
+          <span class="nav-icon">💾</span>
+          Export / Import
+        </a>
+        <a href="#" class="nav-link" data-section="benchmark">
+          <span class="nav-icon">⏱️</span>
+          Benchmark
+        </a>
+        <a href="#" class="nav-link" data-section="sync">
+          <span class="nav-icon">☁️</span>
+          Cloud Sync
+        </a>
+        <a href="#" class="nav-link" data-section="settings">
+          <span class="nav-icon">⚙️</span>
+          Settings
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Dashboard -->
+      <section id="dashboard" class="section active">
+        <h1>Dashboard</h1>
+        <p class="section-desc">Your battery health overview</p>
+
+        <!-- Battery Stress Warning Banner -->
+        <div id="stress-warning-banner" class="stress-banner" style="display:none;">
+          <div class="stress-banner-left">
+            <span class="stress-icon" id="stress-icon">⚠️</span>
+            <div class="stress-text">
+              <span class="stress-level-label" id="stress-level-label">Mild Stress</span>
+              <span class="stress-message" id="stress-message">Charging above 85% increases battery voltage
+                stress.</span>
+            </div>
+          </div>
+          <div class="stress-counters">
+            <div class="stress-counter-badge" id="stress-counter-today-wrap">
+              <span class="stress-counter-val" id="stress-counter-today">0</span>
+              <span class="stress-counter-lbl">Events Today</span>
+            </div>
+            <div class="stress-counter-badge" id="stress-counter-90-wrap">
+              <span class="stress-counter-val" id="stress-counter-90">0m</span>
+              <span class="stress-counter-lbl">Above 90%</span>
+            </div>
+            <div class="stress-counter-badge" id="stress-counter-95-wrap">
+              <span class="stress-counter-val" id="stress-counter-95">0</span>
+              <span class="stress-counter-lbl">Crossed 95%</span>
+            </div>
+          </div>
+        </div>
+        <div class="remote-battery-card card">
+          <h3>📱 View Phone Battery on Laptop</h3>
+          <p class="live-battery-note">See your phone's battery on this screen in real time. Use a local server (not
+            file://). Both devices on same WiFi. Phone needs Firefox or Safari for battery detection.</p>
+          <div class="remote-mode-row">
+            <div class="remote-laptop card">
+              <h4>On this device (laptop)</h4>
+              <button class="btn btn-primary" id="remote-start">Start — show pairing code</button>
+              <div id="remote-code-area" style="display:none;">
+                <p class="remote-code-label">On your phone, open this site and enter:</p>
+                <p class="remote-code" id="remote-code">——</p>
+                <p class="remote-status" id="remote-laptop-status">Waiting for phone…</p>
+              </div>
+            </div>
+            <div class="remote-phone card">
+              <h4>On your phone</h4>
+              <div class="form-row">
+                <input type="text" id="remote-enter-code" placeholder="Enter 6-char code" maxlength="6"
+                  style="text-transform:uppercase;">
+              </div>
+              <button class="btn btn-primary" id="remote-connect">Connect & share battery</button>
+              <p class="remote-status" id="remote-phone-status"></p>
+
+              <!-- Remote Presentation Controls (visible on phone after connect) -->
+              <div id="remote-controls"
+                style="display:none; margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+                <h4 style="margin-bottom: 0.75rem;">🎮 Remote Control</h4>
+                <p class="calc-desc" style="margin-bottom: 1rem;">Control the connected laptop's screen.</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                  <button class="btn btn-secondary" id="rc-left" style="font-size: 1.2rem; padding: 1rem;">⬅️
+                    Left</button>
+                  <button class="btn btn-secondary" id="rc-right" style="font-size: 1.2rem; padding: 1rem;">➡️
+                    Right</button>
+                  <button class="btn btn-secondary" id="rc-up"
+                    style="font-size: 1.2rem; padding: 1rem; grid-column: span 2;">⬆️ Scroll Up</button>
+                  <button class="btn btn-secondary" id="rc-down"
+                    style="font-size: 1.2rem; padding: 1rem; grid-column: span 2;">⬇️ Scroll Down</button>
+                  <button class="btn btn-primary" id="rc-camera"
+                    style="font-size: 1rem; padding: 0.75rem; grid-column: span 2; background: #8a2be2;">📷 Start Camera
+                    Stream</button>
+                  <button class="btn btn-primary" id="rc-gyro"
+                    style="font-size: 1rem; padding: 0.75rem; grid-column: span 2; background: #2b6cb0;">🌀 Gyro Scroll
+                    (Tilt to Scroll)</button>
+                  <button class="btn btn-primary" id="rc-voice"
+                    style="font-size: 1rem; padding: 0.75rem; grid-column: span 2; background: #276749;">🎤 Voice
+                    Control</button>
+                  <button class="btn btn-primary" id="rc-qr"
+                    style="font-size: 1rem; padding: 0.75rem; grid-column: span 2; background: #744210;">📷 Scan QR
+                    Code</button>
+                  <button class="btn btn-primary" id="rc-gps"
+                    style="font-size: 1rem; padding: 0.75rem; grid-column: span 2; background: #553c9a;">📍 Share GPS
+                    Location</button>
+                </div>
+
+                <!-- QR Scanner Video (hidden until active) -->
+                <video id="qr-video"
+                  style="display:none; width:100%; margin-top:0.5rem; border-radius:var(--radius-sm);"></video>
+                <p id="voice-transcript"
+                  style="display:none; margin-top:0.5rem; font-size:0.85rem; background:var(--bg-body); padding:0.5rem; border-radius:var(--radius-sm);">
+                  🎤 Listening...</p>
+
+                <!-- Secondary Display Slot (phone receives content here) -->
+                <div id="slide-display"
+                  style="display:none; margin-top:1rem; padding:1.5rem; background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius:var(--radius-md); text-align:center;">
+                  <h2 id="slide-title" style="font-size:1.5rem; color:white; margin-bottom:0.5rem;">Title</h2>
+                  <p id="slide-body" style="font-size:1rem; color:#ccc;">Body text</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Camera Stream (visible on laptop) -->
+          <div id="remote-camera-container" style="display:none; margin-top: 1.5rem; text-align: center;">
+            <h4 style="margin-bottom: 0.5rem;">📷 Live Phone Camera</h4>
+            <video id="remote-video" autoplay playsinline
+              style="width: 100%; max-width: 400px; border-radius: var(--radius-md); border: 2px solid var(--accent); background: #000;"></video>
+          </div>
+
+          <div class="remote-display-container" id="remote-display-container" style="display:none; margin-top: 1.5rem;">
+            <h3 style="margin-bottom: 1rem;">📱 Connected Devices</h3>
+            <div class="remote-devices-grid" id="remote-devices-grid"
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+              <!-- Devices will be injected here -->
+            </div>
+
+            <!-- Ecosystem Map -->
+            <div id="ecosystem-map-box"
+              style="display:none; margin-top:1rem; padding:1rem; background: var(--bg-elevated); border-radius: var(--radius-sm);">
+              <h4 style="margin-bottom:0.75rem;">🕸️ Device Ecosystem</h4>
+              <div id="ecosystem-svg-container" style="min-height:120px;"></div>
+            </div>
+
+            <!-- Cross-Device Setup Insight -->
+            <div id="setup-insight-box"
+              style="display:none; margin-top: 1rem; padding: 1rem; background: var(--bg-elevated); border-left: 4px solid var(--accent); border-radius: var(--radius-sm);">
+              <h4 style="margin-bottom: 0.5rem; color: var(--accent);">📊 Setup Health Insight</h4>
+              <p id="setup-insight-text" style="font-size: 0.9rem; margin: 0;">Analyzing connected devices...</p>
+            </div>
+
+            <!-- Quick File Transfer -->
+            <div class="shared-clipboard-card card" style="margin-top: 1.5rem;">
+              <h4 style="margin-bottom: 0.5rem;">🔗 Shared Clipboard & Files</h4>
+              <p class="calc-desc" style="margin-bottom: 0.5rem;">Drop files or send text between devices.</p>
+              <div class="clipboard-history" id="clipboard-history"
+                style="max-height: 150px; overflow-y: auto; margin-bottom: 0.75rem; padding: 0.75rem; background: var(--bg-body); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                <p class="empty" style="font-size: 0.85rem; color: var(--text-muted); margin: 0; text-align: center;">No
+                  messages yet.</p>
+              </div>
+              <div class="clipboard-input-row" style="display: flex; gap: 0.5rem; align-items: center;">
+                <label for="file-transfer-input"
+                  style="cursor: pointer; padding: 0.5rem; background: var(--bg-body); border-radius: var(--radius-sm); border: 1px solid var(--border);"
+                  title="Send File">
+                  📎
+                </label>
+                <input type="file" id="file-transfer-input" style="display:none;">
+
+                <input type="text" id="clipboard-input" placeholder="Type a message or paste a link..."
+                  style="flex: 1;">
+                <button class="btn btn-primary" id="clipboard-send">Send</button>
+              </div>
+            </div>
+
+            <!-- Laptop → Phone Toolkit -->
+            <div class="card" style="margin-top:1.5rem;">
+              <h4 style="margin-bottom:0.75rem;">💻 Laptop → Phone Controls</h4>
+              <div style="display:grid; gap:0.75rem;">
+                <!-- Open URL on Phone -->
+                <div style="display:flex; gap:0.5rem;">
+                  <input type="url" id="remote-url-input" placeholder="https://... (open on phone)" style="flex:1;">
+                  <button class="btn btn-primary" id="remote-url-send">📱 Open</button>
+                </div>
+                <!-- Push Notification -->
+                <div style="display:flex; gap:0.5rem;">
+                  <input type="text" id="push-notif-input" placeholder="Send notification text to phone..."
+                    style="flex:1;">
+                  <button class="btn btn-secondary" id="push-notif-send">🔔 Notify</button>
+                </div>
+                <!-- Secondary Display -->
+                <div style="display:grid; gap:0.5rem;">
+                  <input type="text" id="slide-title-input" placeholder="Slide title...">
+                  <input type="text" id="slide-body-input" placeholder="Slide body text...">
+                  <button class="btn btn-secondary" id="slide-push-send">📺 Push to Phone Screen</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- GPS Map -->
+            <div id="gps-map-box" style="display:none; margin-top:1.5rem;">
+              <h4 style="margin-bottom:0.5rem;">📍 Phone Location</h4>
+              <div id="gps-map" style="height:250px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+              </div>
+            </div>
+
+            <!-- Battery Drain Speed -->
+            <div id="drain-speed-box"
+              style="display:none; margin-top:1rem; padding:1rem; background:var(--bg-elevated); border-left:4px solid #e53e3e; border-radius:var(--radius-sm);">
+              <h4 style="margin-bottom:0.25rem; color:#e53e3e;">⏳ Drain Speed</h4>
+              <p id="drain-speed-text" style="font-size:0.9rem; margin:0;">Calculating...</p>
+            </div>
+
+            <!-- AI Smart Insights -->
+            <div class="card" style="margin-top:1.5rem;">
+              <h4 style="margin-bottom:0.5rem;">🧠 AI Charging Insights</h4>
+              <p id="ai-insight-text" class="calc-desc">Log more charging sessions to unlock personalized
+                recommendations.</p>
+            </div>
+
+            <!-- Battery Health Certificate -->
+            <div class="card" style="margin-top:1.5rem; text-align:center;">
+              <h4 style="margin-bottom:0.5rem;">📄 Battery Health Certificate</h4>
+              <p class="calc-desc" style="margin-bottom:1rem;">Export a professional battery health report.</p>
+              <button class="btn btn-primary" id="export-certificate" style="width:100%;">📥 Download
+                Certificate</button>
+            </div>
+
+            <!-- Hidden printable certificate -->
+            <div id="print-certificate"
+              style="display:none; font-family: sans-serif; padding:2rem; max-width:700px; margin:0 auto;">
+              <h1 style="color:#22c55e; border-bottom:2px solid #22c55e; padding-bottom:0.5rem;">🔋 BatteryLife Health
+                Certificate</h1>
+              <p id="cert-date" style="color:#888; font-size:0.85rem;"></p>
+              <div style="margin:1.5rem 0;">
+                <h2>Connected Devices</h2>
+                <div id="cert-devices"></div>
+              </div>
+              <div style="margin:1.5rem 0;">
+                <h2>AI Insights</h2>
+                <p id="cert-insights">No insights available yet.</p>
+              </div>
+              <div style="margin-top:3rem; font-size:0.8rem; color:#888; border-top:1px solid #ccc; padding-top:1rem;">
+                Generated by BatteryLife — Advanced Battery Health Monitor</div>
+            </div>
+          </div>
+        </div>
+        <div class="live-battery-card card" id="live-battery-card">
+          <h3>📱 Live Battery (this device)</h3>
+          <p class="live-battery-note">Works when you open this site <strong>on your phone</strong>. Desktop shows your
+            laptop's battery.</p>
+          <div id="live-battery-content">
+            <div class="live-battery-display" id="live-battery-display" style="display:none;">
+              <span class="live-battery-pct" id="live-battery-pct">--</span>
+              <span class="live-battery-status" id="live-battery-status"></span>
+              <button class="btn btn-primary" id="log-live-battery">Log to Health Tracker</button>
+            </div>
+
+            <!-- Auto Logger Status -->
+            <div id="auto-logger-card" class="auto-logger-card" style="display:none;">
+              <div class="al-icon">🤖</div>
+              <div class="al-info">
+                <h4>Auto-Logger Active</h4>
+                <p id="al-text">Tracking charge session...</p>
+              </div>
+              <div class="al-timer" id="al-timer">00:00</div>
+            </div>
+
+            <div class="live-battery-unsupported" id="live-battery-unsupported" style="display:none;">
+              <p>Battery API not supported in this browser. Open this site on your phone (Firefox/Safari) or log
+                manually.</p>
+            </div>
+            <div id="live-battery-loading">Checking battery…</div>
+          </div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="stat-card">
+            <span class="stat-label">Current Health</span>
+            <div class="stat-health-row">
+              <span class="stat-value" id="dashboard-health">--</span>
+              <span class="stat-unit">%</span>
+              <span class="health-grade-badge" id="health-grade-badge"></span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Total Charges Logged</span>
+            <span class="stat-value" id="dashboard-charges">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Active Reminders</span>
+            <span class="stat-value" id="dashboard-reminders">0</span>
+          </div>
+        </div>
+
+        <!-- Lifespan Predictor + Daily Report Row -->
+        <div class="dashboard-insight-row">
+          <div class="card insight-card" id="lifespan-card">
+            <div class="insight-card-icon">🔮</div>
+            <h4>Lifespan Predictor</h4>
+            <p id="lifespan-text" class="insight-value">Log health data to predict lifespan.</p>
+            <p id="lifespan-sub" class="insight-sub"></p>
+          </div>
+          <div class="card insight-card" id="daily-report-card">
+            <div class="insight-card-icon">📋</div>
+            <h4>Today's Report</h4>
+            <div class="daily-report-grid">
+              <div class="daily-report-item"><span id="dr-charges">0</span><small>charges</small></div>
+              <div class="daily-report-item"><span id="dr-stress">0</span><small>stress events</small></div>
+              <div class="daily-report-item"><span id="dr-score">--</span><small>score today</small></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stress Index Meter -->
+        <div class="card stress-index-card" id="stress-index-card">
+          <div class="stress-index-header">
+            <div>
+              <h3>🧠 Battery Care Score</h3>
+              <p class="stress-index-sub" id="stress-index-status">Analysing your charging habits…</p>
+            </div>
+            <div class="stress-score-badge" id="stress-score-badge">--</div>
+          </div>
+          <div class="stress-index-body">
+            <div class="stress-ring-wrap">
+              <svg class="stress-ring" viewBox="0 0 120 120" width="120" height="120">
+                <circle class="stress-ring-bg" cx="60" cy="60" r="52" />
+                <circle class="stress-ring-fill" id="stress-ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                  stroke-dashoffset="326.73" />
+              </svg>
+              <div class="stress-ring-center">
+                <span class="stress-ring-score" id="stress-ring-score">--</span>
+                <span class="stress-ring-label" id="stress-ring-label">Score</span>
+              </div>
+            </div>
+            <div class="stress-index-details">
+              <div class="stress-bar-wrap">
+                <div class="stress-bar-track">
+                  <div class="stress-bar-fill" id="stress-bar-fill" style="width:0%"></div>
+                </div>
+                <div class="stress-bar-labels">
+                  <span>High Stress</span><span>Moderate</span><span>Healthy</span>
+                </div>
+              </div>
+              <div class="stress-insight" id="stress-insight">
+                <span class="stress-insight-icon">📊</span>
+                <span id="stress-insight-text">Log some charge sessions to see your score.</span>
+              </div>
+              <div class="stress-trend" id="stress-trend" style="display:none;">
+                <span class="stress-trend-icon" id="stress-trend-icon">📈</span>
+                <span id="stress-trend-text"></span>
+              </div>
+              <div class="stress-breakdown" id="stress-breakdown"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="upcoming-reminders" id="dashboard-reminders-list"></div>
+      </section>
+
+      <!-- Battery Health Tracker -->
+      <section id="tracker" class="section">
+        <h1>Battery Health Tracker</h1>
+        <p class="section-desc">Log and monitor your battery health over time</p>
+        <div class="tracker-form card">
+          <h3>Log Health</h3>
+          <div class="live-battery-quick card" id="tracker-live-battery" style="display:none;">
+            <p><strong>Live:</strong> <span id="tracker-live-pct">--</span>% <span id="tracker-live-status"></span></p>
+            <button class="btn btn-primary" id="log-live-from-tracker">Log current battery</button>
+          </div>
+          <div class="form-row">
+            <label>Health Percentage (1–100)</label>
+            <input type="number" id="health-input" min="1" max="100" placeholder="e.g. 87">
+          </div>
+          <div class="form-row">
+            <label>Date</label>
+            <input type="date" id="health-date">
+          </div>
+          <button class="btn btn-primary" id="log-health">Log Health</button>
+        </div>
+        <div class="health-history card">
+          <h3>Health History</h3>
+          <div id="health-chart" class="health-chart"></div>
+          <ul id="health-list" class="health-list"></ul>
+        </div>
+      </section>
+
+      <!-- Charge History -->
+      <section id="charge-history" class="section">
+        <h1>Charge History</h1>
+        <p class="section-desc">Track your charging sessions</p>
+        <div class="charge-form card">
+          <h3>Log Charge Session</h3>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Start %</label>
+              <input type="number" id="charge-start" min="0" max="100" placeholder="20">
+            </div>
+            <div class="form-row">
+              <label>End %</label>
+              <input type="number" id="charge-end" min="0" max="100" placeholder="100">
+            </div>
+            <div class="form-row">
+              <label>Duration (mins)</label>
+              <input type="number" id="charge-duration" min="1" placeholder="45">
+            </div>
+            <div class="form-row">
+              <label>Charging Type</label>
+              <select id="charge-type">
+                <option value="normal">Normal</option>
+                <option value="fast">Fast</option>
+                <option value="wireless">Wireless</option>
+                <option value="ultra">Ultra Fast</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="log-charge">Log Charge</button>
+        </div>
+        <!-- Stress Summary for Charge History -->
+        <div class="card charge-stress-summary" id="charge-stress-summary">
+          <h3>⚡ Habit Stress Summary</h3>
+          <div class="charge-stress-grid" id="charge-stress-grid">
+            <div class="charge-stress-item">
+              <span class="charge-stress-val" id="cs-fast-count">0</span>
+              <span class="charge-stress-lbl">Fast/Ultra charges</span>
+            </div>
+            <div class="charge-stress-item">
+              <span class="charge-stress-val" id="cs-full-count">0</span>
+              <span class="charge-stress-lbl">Full 0→100% cycles</span>
+            </div>
+            <div class="charge-stress-item">
+              <span class="charge-stress-val" id="cs-high95-count">0</span>
+              <span class="charge-stress-lbl">Charged above 95%</span>
+            </div>
+            <div class="charge-stress-item">
+              <span class="charge-stress-val" id="cs-deep-count">0</span>
+              <span class="charge-stress-lbl">Deep discharges (&lt;10%)</span>
+            </div>
+          </div>
+          <p class="charge-stress-advice" id="charge-stress-advice">Log charge sessions to see your habit analysis.</p>
+        </div>
+
+        <!-- Heatmap -->
+        <div class="card heatmap-card" id="heatmap-container" style="display:none;margin-bottom:1.5rem;">
+          <h3>🕒 Charging Time Heatmap</h3>
+          <p class="calc-desc" style="margin-bottom:1rem;">When do you usually plug in?</p>
+          <div class="heatmap-grid" id="heatmap-grid"></div>
+        </div>
+
+        <div class="charge-list card">
+          <h3>Recent Charges</h3>
+          <ul id="charge-list"></ul>
+        </div>
+      </section>
+
+      <!-- Reminders -->
+      <section id="reminders" class="section">
+        <h1>Reminders</h1>
+        <p class="section-desc">Set reminders for healthy battery habits</p>
+        <div class="reminder-form card">
+          <h3>Add Reminder</h3>
+          <div class="form-row">
+            <label>Reminder</label>
+            <select id="reminder-type">
+              <option value="limit-charge">Don't charge past 80%</option>
+              <option value="avoid-discharge">Avoid deep discharge (below 20%)</option>
+              <option value="calibration">Monthly calibration (full cycle)</option>
+              <option value="unplug">Unplug when fully charged</option>
+              <option value="cool-down">Let phone cool before charging</option>
+              <option value="custom">Custom reminder</option>
+            </select>
+          </div>
+          <div class="form-row" id="custom-reminder-row" style="display:none;">
+            <label>Custom Text</label>
+            <input type="text" id="custom-reminder" placeholder="Enter your reminder">
+          </div>
+          <div class="form-row">
+            <label>Remind me at</label>
+            <input type="time" id="reminder-time">
+          </div>
+          <div class="form-row">
+            <label>Repeat</label>
+            <select id="reminder-repeat">
+              <option value="daily">Daily</option>
+              <option value="weekdays">Weekdays</option>
+              <option value="weekly">Weekly</option>
+              <option value="once">Once</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="add-reminder">Add Reminder</button>
+        </div>
+        <div class="reminder-list card">
+          <h3>Your Reminders</h3>
+          <ul id="reminder-list"></ul>
+        </div>
+      </section>
+
+      <!-- Tips & Optimization -->
+      <section id="tips" class="section">
+        <h1>Tips & Optimization</h1>
+        <p class="section-desc">Extend your battery life with these practices</p>
+        <div class="tips-grid">
+          <div class="tip-card">
+            <span class="tip-icon">🔌</span>
+            <h3>Optimal Charge Range</h3>
+            <p>Keep your battery between 20–80% when possible. Avoid frequent full charges and deep discharges.</p>
+          </div>
+          <div class="tip-card">
+            <span class="tip-icon">🌡️</span>
+            <h3>Temperature Control</h3>
+            <p>Keep your phone cool. Heat is one of the biggest battery killers—avoid charging in hot environments.</p>
+          </div>
+          <div class="tip-card">
+            <span class="tip-icon">⚡</span>
+            <h3>Fast Charging</h3>
+            <p>Use fast charging sparingly. Regular slow charging is gentler on battery longevity.</p>
+          </div>
+          <div class="tip-card">
+            <span class="tip-icon">🌙</span>
+            <h3>Overnight Charging</h3>
+            <p>Modern phones stop charging at 100%, but keeping it plugged in at full charge for hours adds unnecessary
+              heat cycles.</p>
+          </div>
+          <div class="tip-card">
+            <span class="tip-icon">📱</span>
+            <h3>Screen & Brightness</h3>
+            <p>Lower brightness, reduce screen timeout, and use dark mode on OLED screens to save power.</p>
+          </div>
+          <div class="tip-card">
+            <span class="tip-icon">📶</span>
+            <h3>Connectivity</h3>
+            <p>Turn off Bluetooth, Wi‑Fi, and GPS when not needed. Use Wi‑Fi instead of cellular when available.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Battery Myths -->
+      <section id="myths" class="section">
+        <h1>Battery Myths</h1>
+        <p class="section-desc">Separating fact from fiction</p>
+        <div class="myths-list">
+          <div class="myth-card">
+            <div class="myth-header">
+              <span class="myth-badge myth">Myth</span>
+              <h3>"You must fully drain your battery before charging"</h3>
+            </div>
+            <div class="myth-body">
+              <span class="myth-badge fact">Fact</span>
+              <p>This applied to old nickel-cadmium batteries. Lithium-ion batteries prefer partial charges. Frequent
+                full cycles actually wear them out faster.</p>
+            </div>
+          </div>
+          <div class="myth-card">
+            <div class="myth-header">
+              <span class="myth-badge myth">Myth</span>
+              <h3>"Leaving your phone plugged in overnight damages the battery"</h3>
+            </div>
+            <div class="myth-body">
+              <span class="myth-badge fact">Fact</span>
+              <p>Modern phones have circuitry that stops charging at 100%. However, sitting at 100% for extended periods
+                does add stress. Optimal: charge to 80% if you can.</p>
+            </div>
+          </div>
+          <div class="myth-card">
+            <div class="myth-header">
+              <span class="myth-badge myth">Myth</span>
+              <h3>"Closing apps saves battery"</h3>
+            </div>
+            <div class="myth-body">
+              <span class="myth-badge fact">Fact</span>
+              <p>Constantly force-closing apps can use more battery. The OS manages background apps. Only close apps
+                that are actually draining battery (check usage stats).</p>
+            </div>
+          </div>
+          <div class="myth-card">
+            <div class="myth-header">
+              <span class="myth-badge myth">Myth</span>
+              <h3>"You need to charge a new phone for 24 hours first"</h3>
+            </div>
+            <div class="myth-body">
+              <span class="myth-badge fact">Fact</span>
+              <p>No. Lithium-ion batteries don't need this. Use your phone normally out of the box. Manufacturers
+                already calibrate them.</p>
+            </div>
+          </div>
+          <div class="myth-card">
+            <div class="myth-header">
+              <span class="myth-badge myth">Myth</span>
+              <h3>"Using your phone while charging is dangerous"</h3>
+            </div>
+            <div class="myth-body">
+              <span class="myth-badge fact">Fact</span>
+              <p>Using your phone while charging is safe. It may get slightly warmer and charge slower, but it won't
+                damage the battery or cause explosions with quality chargers.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Interactive Tool -->
+      <section id="calculator" class="section">
+        <h1>Interactive Tool</h1>
+        <p class="section-desc">Estimate battery life and charge times</p>
+        <div class="calculator-grid">
+          <div class="calc-card card">
+            <h3>Battery Life Estimator</h3>
+            <p class="calc-desc">Estimate how long your battery will last based on usage</p>
+            <div class="form-row">
+              <label>Current Battery %</label>
+              <input type="number" id="calc-current" min="1" max="100" value="50" placeholder="50">
+            </div>
+            <div class="form-row">
+              <label>Usage Intensity</label>
+              <select id="calc-usage">
+                <option value="light">Light (browsing, messaging)</option>
+                <option value="medium">Medium (social media, video)</option>
+                <option value="heavy">Heavy (gaming, navigation)</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="calc-life">Estimate</button>
+            <div class="calc-result" id="life-result"></div>
+          </div>
+          <div class="calc-card card">
+            <h3>Charge Time Estimator</h3>
+            <p class="calc-desc">Estimate how long to reach full charge</p>
+            <div class="form-row">
+              <label>Current Battery %</label>
+              <input type="number" id="calc-charge-start" min="0" max="99" value="20" placeholder="20">
+            </div>
+            <div class="form-row">
+              <label>Target %</label>
+              <input type="number" id="calc-charge-end" min="1" max="100" value="100" placeholder="100">
+            </div>
+            <div class="form-row">
+              <label>Charger Type</label>
+              <select id="calc-charger">
+                <option value="5">5W (standard)</option>
+                <option value="15">15W (fast)</option>
+                <option value="25">25W (fast+)</option>
+                <option value="45">45W+ (ultra fast)</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="calc-time">Estimate</button>
+            <div class="calc-result" id="time-result"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Benchmark Tool -->
+      <section id="benchmark" class="section">
+        <h1>Battery Drain Benchmark</h1>
+        <p class="section-desc">Test your real battery performance under heavy load</p>
+        <div class="card" style="text-align:center;">
+          <div style="font-size:3rem;margin-bottom:1rem;">⏱️</div>
+          <h3 style="margin-bottom:0.5rem">5-Minute Stress Test</h3>
+          <p class="calc-desc" style="max-width:400px;margin:0 auto 1.5rem;">Runs intensive graphics and math loops to
+            check how much your battery drops under load.</p>
+
+          <div id="benchmark-ui" style="display:none;margin-bottom:1.5rem;">
+            <div class="stress-ring-wrap" style="margin:0 auto 1rem;">
+              <svg class="stress-ring" viewBox="0 0 120 120" width="120" height="120">
+                <circle class="stress-ring-bg" cx="60" cy="60" r="52" />
+                <circle class="stress-ring-fill" id="bm-ring" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                  stroke-dashoffset="326.73" style="stroke:var(--accent)" />
+              </svg>
+              <div class="stress-ring-center">
+                <span class="stress-ring-score" id="bm-time" style="font-size:1.5rem">5:00</span>
+              </div>
+            </div>
+            <p>Starting Battery: <strong id="bm-start-pct">--</strong>%</p>
+            <canvas id="bm-canvas" width="200" height="50" style="display:none;"></canvas>
+          </div>
+
+          <div id="benchmark-result" class="bm-result"
+            style="display:none;margin-bottom:1.5rem;padding:1rem;background:var(--bg-elevated);border-radius:var(--radius-sm);">
+          </div>
+
+          <button class="btn btn-primary" id="btn-start-benchmark">Start Benchmark</button>
+        </div>
+      </section>
+
+      <!-- Cloud Sync -->
+      <section id="sync" class="section">
+        <h1>Cross-Device Cloud Sync</h1>
+        <p class="section-desc">Sync your logs to another device via secure peer-to-peer connection</p>
+        <div class="data-manager-grid">
+          <div class="card" style="text-align:center;">
+            <h3>📤 Host Device</h3>
+            <p class="calc-desc">Generate a QR code to let another device copy your data.</p>
+            <button class="btn btn-primary" id="btn-sync-host">Generate QR Code</button>
+            <div id="sync-qr-container" style="margin-top:1.5rem;display:none;">
+              <div id="sync-qrcode" style="display:inline-block;padding:10px;background:#fff;border-radius:8px;"></div>
+              <p style="margin-top:0.5rem;font-family:var(--font-mono);font-size:1.2rem;letter-spacing:2px;color:var(--accent);"
+                id="sync-host-code"></p>
+              <p class="import-status" id="sync-host-status" style="margin-top:0.5rem;"></p>
+            </div>
+          </div>
+          <div class="card" style="text-align:center;">
+            <h3>📥 Receive Data</h3>
+            <p class="calc-desc">Scan a QR code or enter the 6-character code from the host.</p>
+            <div class="form-row" style="max-width:200px;margin:0 auto 1rem;">
+              <input type="text" id="sync-join-code" placeholder="Enter Code" maxlength="6"
+                style="text-align:center;text-transform:uppercase;font-size:1.2rem;letter-spacing:2px;">
+            </div>
+            <button class="btn btn-primary" id="btn-sync-join">Connect & Sync</button>
+            <p class="import-status" id="sync-join-status" style="margin-top:1rem;"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings Hub -->
+      <section id="settings" class="section">
+        <h1>Settings & Data Management</h1>
+        <p class="section-desc">Configure your app and manage individual logs</p>
+
+        <div class="card" style="margin-bottom:1.5rem;">
+          <h3>📱 Device Configuration</h3>
+          <p class="calc-desc">Set your permanent phone model for accurate lifespan predictions.</p>
+          <div class="form-row" style="max-width:300px;">
+            <select id="settings-phone-model"></select>
+          </div>
+          <p id="settings-model-saved"
+            style="color:var(--accent);font-size:0.8rem;margin-top:0.5rem;opacity:0;transition:opacity 0.3s;">Saved!</p>
+        </div>
+
+        <div class="card" style="margin-bottom:1.5rem;">
+          <h3>🗑️ Manage Logs</h3>
+          <p class="calc-desc" style="margin-bottom:1rem;">Delete specific erroneous entries from your history.</p>
+
+          <h4 style="margin-bottom:0.5rem;font-size:0.9rem;">Recent Charge Logs</h4>
+          <div class="settings-list" id="settings-charge-list"
+            style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:1rem;">
+          </div>
+
+          <h4 style="margin-bottom:0.5rem;font-size:0.9rem;">Recent Health Logs</h4>
+          <div class="settings-list" id="settings-health-list"
+            style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);">
+          </div>
+        </div>
+
+        <div class="card" style="border-color:#ff444433;">
+          <h3 style="color:#ff4444;">Danger Zone</h3>
+          <p class="calc-desc">Permanently delete all your BatteryLife data from this browser.</p>
+          <button class="btn" id="btn-factory-reset" style="background:#ff4444;color:#fff;">Factory Reset App</button>
+        </div>
+      </section>
+
+      <!-- Phone Model Comparison -->
+      <section id="phone-model" class="section">
+        <h1>Phone Models</h1>
+        <p class="section-desc">Battery specs & degradation info for popular phones</p>
+        <div class="form-row" style="max-width:360px;margin-bottom:1.5rem;">
+          <label>Search / Filter</label>
+          <input type="text" id="model-search" placeholder="e.g. iPhone, Galaxy, Pixel…">
+        </div>
+        <div class="model-grid" id="model-grid"></div>
+      </section>
+
+      <!-- Charger Speed Comparator -->
+      <section id="charger-compare" class="section">
+        <h1>Charger Speed Comparator</h1>
+        <p class="section-desc">See how wattage affects charge time for your phone's battery</p>
+        <div class="card">
+          <div class="form-row" style="max-width:320px;">
+            <label>Your Battery Capacity (mAh)</label>
+            <input type="number" id="mah-input" min="500" max="10000" placeholder="e.g. 4500">
+          </div>
+          <button class="btn btn-primary" id="compare-chargers">Compare</button>
+        </div>
+        <div id="charger-compare-result" class="charger-compare-result"></div>
+      </section>
+
+      <!-- Achievements -->
+      <section id="achievements" class="section">
+        <h1>Achievements</h1>
+        <p class="section-desc">Unlock badges by building healthy battery habits</p>
+        <div class="streak-card card">
+          <div class="streak-icon">🔥</div>
+          <div class="streak-info">
+            <h3>Daily Streak</h3>
+            <p class="section-desc" style="margin:0">Log data every day to build your streak</p>
+          </div>
+          <div class="streak-count">
+            <span id="streak-count">0</span>
+            <small>days</small>
+          </div>
+        </div>
+        <div class="badges-grid" id="badges-grid"></div>
+      </section>
+
+      <!-- Export / Import -->
+      <section id="data-manager" class="section">
+        <h1>Export / Import</h1>
+        <p class="section-desc">Back up or restore all your battery data</p>
+        <div class="data-manager-grid">
+          <div class="card">
+            <h3>📤 Export Data</h3>
+            <p class="calc-desc">Download all your health logs, charge history, and reminders.</p>
+            <button class="btn btn-primary" id="export-json">Export as JSON</button>
+            <button class="btn btn-primary" id="export-csv" style="margin-left:0.75rem;">Export as CSV</button>
+          </div>
+          <div class="card">
+            <h3>📥 Import Data</h3>
+            <p class="calc-desc">Restore data from a previously exported JSON file. <strong>This will merge with
+                existing data.</strong></p>
+            <label class="import-label" for="import-file">
+              <span>📂 Choose JSON file</span>
+              <input type="file" id="import-file" accept=".json" style="display:none;">
+            </label>
+            <p id="import-status" class="import-status"></p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.1.1/umd/index.min.js"></script>
+  <audio id="alarm-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+    preload="auto"></audio>
+  <script src="app.js"></script>
+</body>
+
+</html>
