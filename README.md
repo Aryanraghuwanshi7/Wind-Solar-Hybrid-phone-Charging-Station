@@ -79,6 +79,7 @@ Connect your phone and laptop peer-to-peer with a 6-character code:
 ### ⚙️ Settings & More
 - Dark / Light / OLED black themes
 - Battery Drain Benchmark (5-minute stress test)
+- Mobile-First Responsive UI — Slide-in sidebar & hamburger menu for phones
 - Offline-capable (PWA with Service Worker)
 
 ---
